@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = [
+    "neuraledge-core", 
+    "neuraledge-lang", 
+    "neuraledge-example",
+]
+
+[workspace.package]
+name = "NeuralEdge"
+version = "0.1.0"
+edition = "2021"
+description = "A Deep Learning framework for multi-modal edge computing"
+repository = "https://github.com/maciejwolski/NeuralEdge"
+keywords = ["machine-learning", "edge-computing", "deep-learning", "llm"]
+categories = ["science", "text-processing", "wasm"]
+license = "Apache-2.0"
