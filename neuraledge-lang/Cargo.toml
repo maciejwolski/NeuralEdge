@@ -1,0 +1,13 @@
+[package]
+name = "neuraledge-lang"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+neuraledge-core = { path = "../neuraledge-core/" }
+ndarray = { version="0.15.6", features=["serde", "rayon"]}
+num-traits = "0.2.18"
+rand = "0.8.5"
+rayon = "1.10.0"
+serde = { version="1.0.199", features=["derive"] }
+serde_json = "1.0.116"
