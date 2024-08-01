@@ -3,12 +3,13 @@ resolver = "2"
 members = [
     "neuraledge-core", 
     "neuraledge-lang", 
-    "neuraledge-example",
+    "neuraledge-example", 
+    "neuraledge-benchmarks",
 ]
 
 [workspace.package]
 name = "NeuralEdge"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A Deep Learning framework for multi-modal edge computing"
 repository = "https://github.com/maciejwolski/NeuralEdge"

@@ -1,0 +1,9 @@
+[package]
+name = "neuraledge-benchmarks"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+ndarray = "0.15.6"
+neuraledge-core = { path = "../neuraledge-core/" }
+rand = "0.8.5"

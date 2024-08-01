@@ -2,9 +2,12 @@ pub mod components;
 pub mod train;
 pub mod utils;
 
+use neuraledge_core::backends::gpu::GpuTensor;
 use utils::*;
 
 use crate::neuraledge_core::backends::Tensor;
+use crate::neuraledge_core::backends::gpu::init_gpu_context;
+use crate::neuraledge_core::backends::gpu::Block as GpuBlock;
 use crate::neuraledge_core::nn::linear::{Linear, Sequential};
 use crate::neuraledge_core::nn::optimizers::RMSProp;
 use crate::neuraledge_core::nn::activations::Activation;
@@ -13,6 +16,7 @@ use crate::tokenizers::get_first_pad_index_in_batch;
 
 use components::{Embedding, RotaryPositionalEncoding, Block};
 
+use std::any::TypeId;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -52,6 +56,10 @@ where
 {
     pub fn new(vocab_size: usize, d_model: usize, d_ff: usize, num_layers: usize, num_heads: usize) -> Self {
         let mut graph = Graph::new();
+
+        if TypeId::of::<B>() == TypeId::of::<GpuTensor<T>>() {
+            init_gpu_context().wait();
+        }
 
         let pos_encoding = RotaryPositionalEncoding::new(d_model);
         let tok_embedding = Arc::new(Mutex::new(Embedding::new(vocab_size, d_model, pos_encoding.clone())));
@@ -107,6 +115,10 @@ where
     fn from_checkpoint(model: ModelData<T,B>) -> Self {
         let tensor_fields = model.tensors;
         let hyperparams = model.hyperparameters;
+
+        if TypeId::of::<B>() == TypeId::of::<GpuTensor<T>>() {
+            init_gpu_context().wait();
+        }
 
         let mut transformer = Transformer::new(0, hyperparams.d_model, hyperparams.d_ff, hyperparams.num_layers, hyperparams.num_heads);
         transformer.hyperparams.num_epochs = hyperparams.num_epochs;
@@ -184,17 +196,6 @@ where
     }
 
     pub fn forward(&mut self, result: &B) -> B {
-        // let mut embed = self.tok_embedding.lock().unwrap();
-        // let encoded_batch = embed.forward(input);
-
-        // let mut output = encoded_batch;
-        // for layer in &mut self.layers {
-        //     output = layer.forward(&output);
-        // }
-
-
-        // let mut logits = self.fc_logits.lock().unwrap();
-        // let result = logits.forward(&output);
         self.output = Some(result.clone());
         result.clone()
     }
@@ -205,19 +206,6 @@ where
         if validate_gradients(&output_grad) {
             println!(">>> Cross Entropy Loss backward contains NaN");
         }
-        // self.output_grad = Some(output_grad.clone());
-
-        // let mut logits = self.fc_logits.lock().unwrap();
-
-        // let mut grad = output_grad.clone();
-        // grad = logits.backward(&grad);
-
-        // for layer in self.layers.iter_mut().rev() {
-        //     grad = layer.backward(&grad);
-        // }
-
-        // let mut embed = self.tok_embedding.lock().unwrap();
-        // embed.backward(&grad);
         output_grad
     }
 
@@ -256,10 +244,8 @@ where
     }
 
     pub fn cross_entropy_loss_backward(target: &B, output: &B, mask: &B) -> B {
-        //let output = self.output.as_ref().unwrap();
         let target_onehot = B::onehot(target, output.shape()[2]);
 
-        //let mask = self.get_mask_for_special_tokens(target, output.shape()[2]);
         let output_grad = output.sub(&target_onehot);
         let masked_output_grad = output_grad.mul(&mask);
 
@@ -302,17 +288,8 @@ where
         for i in seq_start..max_length {
 
             // forward pass
-            //output = self.forward(&mut_input.clone());
             output = self.graph.forward(&mut_input);
 
-            // self.prediction.lock().unwrap().output = output.clone();
-
-            // get current output and assign to self.output
-            // let last_output_slice = output.get_data().index_axis(Axis(1), i);
-            // let mut prediction = self.prediction.lock().unwrap();
-            // prediction.output.get_data_mut().slice_mut(s![.., i..i+1, ..]).assign(&last_output_slice.insert_axis(Axis(1)));
-
-            // get max values - predicted tokens
             let index = output.index_axis_move(1, i).max_axis(1);
             let predicted = index.get_data().to_owned();
             let word_indices = predicted.iter().map(|&x| x.as_()).collect::<Vec<usize>>();
@@ -542,17 +519,6 @@ where
                         self.opt_grads.insert(key, head.v_grad.clone().unwrap());
                     }
                 }
-    
-                // if validate_gradients(&head.o_grad.clone().unwrap()) {
-                //     println!(">>> Gradients for attention_output_{} are NaN", h_counter);
-                // } else {
-                //     let key = format!("attention_output_{}", h_counter);
-                //     if let Some(value) = self.opt_grads.get_mut(&key) {
-                //         *value = head.o_grad.clone().unwrap();
-                //     } else {
-                //         self.opt_grads.insert(key, head.o_grad.clone().unwrap());
-                //     }
-                // }
 
                 h_counter += 1;
             }

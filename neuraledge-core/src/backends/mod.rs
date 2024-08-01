@@ -1,4 +1,5 @@
 pub mod cpu;
+pub mod gpu;
 pub mod graph;
 
 use ndarray::{ArrayD, Array1, ArrayViewD, ArrayViewMutD, IxDyn};

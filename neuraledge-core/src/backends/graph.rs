@@ -69,57 +69,15 @@ where
             let mut layer = layer.lock().unwrap();
             layer.node_forward(&acc)
         })
-        // let input_count = input.shape()[0];
-        // let inputs = Mutex::new(Vec::with_capacity(input_count));
-
-        // // Split batch inputs to a vector of tensors
-        // for b in 0..input_count {
-        //     let data = input.slice(0, b, b+1);
-        //     inputs.lock().unwrap().push(data);
-        // }
-
-        // let layers = Arc::clone(&self.layers);
-        // let results: Vec<B> = inputs.into_inner().unwrap().par_iter()
-        // .map(|input_clone| {
-        //     let mut layers = layers.lock().unwrap();
-        //     layers.iter_mut().fold(input_clone.to_owned(), |acc, layer| {
-        //         let mut layer = layer.lock().unwrap();
-        //         layer.node_forward(&acc)
-        //     })
-        // })
-        // .collect();
-
-        // let concatenated = concatenate(Axis(0), &results.iter().map(|a| a.view()).collect::<Vec<_>>()).unwrap();
-        // B::new(concatenated)
     }
 
     pub fn backward(&mut self, targets: &B) {
         let mut grad = targets.clone();
-        
+
         for layer in self.layers.iter_mut().rev() {
             let mut layer = layer.lock().unwrap();
             grad = layer.node_backward(&grad);
         }
-        // let output_count = targets.shape()[0];
-        // let grads = Mutex::new(Vec::with_capacity(output_count));
-
-        // // Split the targets to a vector of tensors
-        // for b in 0..output_count {
-        //     let data = targets.slice(0, b, b+1);
-        //     grads.lock().unwrap().push(data);
-        // }
-
-        // let _results: Vec<B> = grads.into_inner().unwrap().iter()
-        //     .map(|grad_clone| {
-
-        //         let mut layers = self.layers.lock().unwrap();
-        //         layers.iter_mut().rev().fold(grad_clone.to_owned(), |acc, layer| {
-        //             let mut layer = layer.lock().unwrap();
-        //             layer.node_backward(&acc)
-        //         })
-        //     }
-        // )
-        // .collect();
     }
 
     pub fn update(&mut self, learning_rate: T) {

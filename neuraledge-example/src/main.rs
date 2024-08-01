@@ -1,6 +1,6 @@
 extern crate neuraledge_lang;
 
-use neuraledge_core::backends::{Tensor, cpu::CpuTensor};
+use neuraledge_core::backends::Tensor;
 use neuraledge_core::nn::optimizers::RMSProp;
 
 use neuraledge_lang::transformers::Transformer;
@@ -11,6 +11,9 @@ use ndarray::Array;
 use std::path::Path;
 
 use neuraledge_lang::tokenizers::load_tokenizer;
+
+//type BackendTensor<'a> = neuraledge_core::backends::gpu::GpuTensor<'a, f32>;
+type BackendTensor = neuraledge_core::backends::cpu::CpuTensor<f32>;
 
 fn main() {
     let data = DATA.to_vec();
@@ -32,17 +35,17 @@ fn main() {
     let train_data_str: Vec<&str> = train_data.iter().map(|s| s.as_str()).collect();
     let target_data_str: Vec<&str> = target_data.iter().map(|s| s.as_str()).collect();
 
-    let mut transformer: Transformer::<f32, CpuTensor<f32>>;
+    let mut transformer: Transformer::<f32, BackendTensor>;
         
     if Path::new("model.bin").exists() {
         let data = std::fs::read_to_string("model.bin").expect("Failed to read model from file");
-        transformer = Transformer::<f32, CpuTensor<f32>>::load_model(data);
+        transformer = Transformer::<f32, BackendTensor>::load_model(data);
         println!("Model loaded from file");
     } else {
-        transformer = Transformer::<f32, CpuTensor<f32>>::new(vocab.len(), 8, 16, 1, 2);
+        transformer = Transformer::<f32, BackendTensor>::new(vocab.len(), 8, 16, 1, 2);
     }
 
-    let optimizer = RMSProp::<f32, CpuTensor<f32>>::default();
+    let optimizer = RMSProp::<f32, BackendTensor>::default();
 
     println!("Training model...");
     println!("{:?} parameters, {:?} tokens in training dataset", transformer.get_model_size(), tokenizer.get_dataset_token_size(&train_data_str));
@@ -51,7 +54,7 @@ fn main() {
 
     println!("vocab size: {} tokens", vocab.len());
 
-    train(&mut transformer, &train_data, &train_target_data, &test_data[0], test_target_data[0], &tokenizer, &vocab, 24, 1000, 0.01, Some(optimizer));
+    train(&mut transformer, &train_data, &train_target_data, &test_data[0], test_target_data[0], &tokenizer, &vocab, 8, 1000, 0.01, Some(optimizer));
 
     println!("Testing model...");
 
@@ -69,8 +72,8 @@ fn main() {
 
         println!("input array: {:?}", input_array);
 
-        let mut input = CpuTensor::new(input_array.into_dyn());
-        let mut target = CpuTensor::new(target_array.into_dyn());
+        let mut input = BackendTensor::new(input_array.into_dyn());
+        let mut target = BackendTensor::new(target_array.into_dyn());
 
         let output = transformer.generate_text(&mut input, &vocab, tokenized_target_len, true);
 

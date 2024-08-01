@@ -85,7 +85,7 @@ where T: 'static + Float + Copy + Clone + Zero + SampleUniform + FromPrimitive +
             let start = i * step as usize;
             let end = (i + 1) * step as usize;
             let split_data = self.data.slice_axis(Axis(axis), (start..end).into()).to_owned();
-            result.push(Tensor::new(split_data));
+            result.push(CpuTensor::new(split_data));
         }
 
         result
@@ -391,5 +391,30 @@ where
 
     fn into_par_iter(self) -> Self::Iter {
         self.data.view().into_par_iter()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cpu_tensor_random() {
+        let tensor = CpuTensor::<f32>::random(&[2, 3]);
+        assert_eq!(tensor.shape(), vec![2, 3]);
+    }
+
+    #[test]
+    fn test_cpu_tensor_slice() {
+        let tensor = CpuTensor::<f32>::random(&[2, 3]);
+        let sliced = tensor.slice(0, 0, 1);
+        assert_eq!(sliced.shape(), vec![1, 3]);
+    }
+
+    #[test]
+    fn test_cpu_tensor_index_axis() {
+        let tensor = CpuTensor::<f32>::random(&[2, 3]);
+        let sliced = tensor.index_axis(0, 0);
+        assert_eq!(sliced.shape(), vec![3]);
     }
 }

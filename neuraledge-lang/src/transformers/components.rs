@@ -395,10 +395,10 @@ where
     pub q_grad: Option<B>,
     pub k_grad: Option<B>,
     pub v_grad: Option<B>,
-    //pub o_grad: Option<B>,
     pub output_weights: B,
     output: Option<B>,
-    dtype: std::marker::PhantomData<T>
+    dtype: std::marker::PhantomData<T>,
+    btype: std::marker::PhantomData<B>
 }
 
 impl<T,B> AttentionHead<T,B> 
@@ -411,7 +411,7 @@ where
         let k = Arc::new(Mutex::new(B::glorot_uniform(&[d_model / num_heads, d_model / num_heads])));
         let v = Arc::new(Mutex::new(B::glorot_uniform(&[d_model / num_heads, d_model / num_heads])));
         let output_weights = B::glorot_uniform(&[d_model / num_heads, d_model / num_heads]);
-        Self { input: None, q, k, v, q_grad: None, k_grad: None, v_grad: None, q_proj: None, k_proj: None, v_proj: None, o_proj: None, output_weights, output: None, dtype: std::marker::PhantomData }
+        Self { input: None, q, k, v, q_grad: None, k_grad: None, v_grad: None, q_proj: None, k_proj: None, v_proj: None, o_proj: None, output_weights, output: None, dtype: std::marker::PhantomData, btype: std::marker::PhantomData }
     }
 
     pub fn forward(&mut self, input: &B) -> B {
@@ -426,9 +426,9 @@ where
         let value_proj = input.matmul(&v_weights.transpose());
 
         let raw_attention_scores = query_proj.matmul(&key_proj.transpose_axes(1, 2));
+
         let masked_attention_scores = raw_attention_scores.add(self.create_mask_array(input.shape()[1]));
         let normalized_attention_scores = softmax(&masked_attention_scores);
-
         let attention_output = normalized_attention_scores.matmul(&value_proj);
         self.output = Some(attention_output.clone());
 
