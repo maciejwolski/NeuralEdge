@@ -2,6 +2,7 @@ use crate::backends::Tensor;
 use super::activations::*;
 
 use num_traits::{AsPrimitive, Float};
+use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 use std::sync::{Arc, Mutex};
 
@@ -25,7 +26,7 @@ where
 
 impl<T, B> Linear<T,B> 
 where
-    T: Float + AsPrimitive<f32>,
+    T: Float + AsPrimitive<f32> + Debug,
     B: Tensor<T> + Clone + AddAssign + SubAssign,
 {
     pub fn new(in_features: usize, out_features: usize, activations: Activation) -> Self {
@@ -213,7 +214,7 @@ where
 
 impl<T, B> Sequential<T,B>
 where
-    T: Float + AsPrimitive<f32>,
+    T: Float + AsPrimitive<f32> + Debug,
     B: Tensor<T> + AddAssign + SubAssign + Clone,
 {
     pub fn new() -> Self {

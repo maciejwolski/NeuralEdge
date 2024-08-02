@@ -38,7 +38,7 @@ impl GPUContext {
 
     pub const ARRAYOPS: &'static str = include_str!("shaders/arrayops.wgsl");
     pub const SCALAROPS: &'static str = include_str!("shaders/scalarops.wgsl");
-    pub const BATCHMUL: &'static str = include_str!("shaders/batchmul.wgsl");
+    pub const MATMUL: &'static str = include_str!("shaders/matmul.wgsl");
 
     pub async fn new() -> Self {
         let (device, queue) = Self::get_device().await.unwrap();
@@ -90,7 +90,7 @@ impl GPUContext {
         let shader_source = match shader_type {
             "array" => Self::ARRAYOPS,
             "scalar" => Self::SCALAROPS,
-            "batchmul" => Self::BATCHMUL,
+            "matmul" => Self::MATMUL,
             _ => panic!("Invalid shader type")
         };
 
@@ -201,10 +201,8 @@ where
 
     fn matmul(&self, other: &Self) -> Self {
         let context = get_gpu_context();
-
         let target_shape: Vec<usize>;
         let wsize: usize;
-
         if other.shape().len() == 2 {
             target_shape = vec![self.shape()[0], self.shape()[1], other.shape()[1]];
             wsize = target_shape[0] * target_shape[1] * target_shape[2];
@@ -215,12 +213,13 @@ where
             target_shape = vec![self.shape()[0], self.shape()[1], other.shape()[2]];
             wsize = target_shape[0] * target_shape[1] * target_shape[2];
         }
-        let pipeline = context.get_pipeline("matmul", "batchmul", (32, 32));
+        let pipeline: Arc<wgpu::ComputePipeline> = context.get_pipeline("batch_mul", "matmul", (32, 32));
 
-        let output_buffer = context.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let output_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&vec![T::zero(); wsize]),
+            size: (wsize * std::mem::size_of::<T>()) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false
         });
 
         let staging_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
@@ -229,9 +228,11 @@ where
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false
         });
+
+        let bind_group = other.get_bind_group_batch(&self, &pipeline, &output_buffer);
+
+        let result = other.encode_and_submit_batch(&pipeline, &bind_group, &output_buffer, &staging_buffer, &target_shape, wsize).wait();
         
-        let bind_group = self.get_bind_group_matmul(&other, &pipeline, &output_buffer);
-        let result = self.encode_and_submit_batch(&pipeline, &bind_group, &output_buffer, &staging_buffer, &target_shape, wsize).wait();
         let output = result.map(|&e| T::from(e).unwrap());
         
         GpuTensor::new_on_gpu(output, None)
@@ -777,15 +778,16 @@ where T: bytemuck::Pod + 'static
 
     pub async fn encode_and_submit_batch(&self, compute_pipeline: &wgpu::ComputePipeline, bind_group: &wgpu::BindGroup, output_buffer: &wgpu::Buffer, staging_buffer: &wgpu::Buffer, target_shape: &[usize], wsize: usize) -> ArrayD<f32> {
         let mut encoder = self.context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-    
-        let workgroup_count_x = (target_shape[0] / 32 + 1) as u32;
-        let workgroup_count_y = (target_shape[1] / 32 + 1) as u32;
+
+        let workgroup_count_x = ((target_shape[2] + 31) / 32) as u32;
+        let workgroup_count_y = ((target_shape[1] + 31) / 32) as u32;
+        let workgroup_count_z = target_shape[0] as u32;
     
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes: None });
             compute_pass.set_pipeline(compute_pipeline);
             compute_pass.set_bind_group(0, bind_group, &[]);
-            compute_pass.dispatch_workgroups(workgroup_count_x, workgroup_count_y, 1);
+            compute_pass.dispatch_workgroups(workgroup_count_x, workgroup_count_y, workgroup_count_z);
         }
     
         encoder.copy_buffer_to_buffer(output_buffer, 0, staging_buffer, 0, (wsize * std::mem::size_of::<T>()) as u64);
@@ -811,32 +813,32 @@ where T: bytemuck::Pod + 'static
         result
     }
 
-    pub fn matmul_optimized(batch: Self, multiplier: Self) -> Array<f32, IxDyn> {
-        let context = get_gpu_context();
-        let wshape = batch.data.shape();
-        let wsize = wshape.iter().fold(1, |acc, x| acc * x);
-        let pipeline: Arc<wgpu::ComputePipeline> = context.get_pipeline("batch_mul", "batchmul", (32, 32));
+    // pub fn matmul_optimized(batch: Self, multiplier: Self) -> Array<f32, IxDyn> {
+    //     let context = get_gpu_context();
+    //     let wshape = batch.data.shape();
+    //     let wsize = wshape.iter().fold(1, |acc, x| acc * x);
+    //     let pipeline: Arc<wgpu::ComputePipeline> = context.get_pipeline("batch_mul", "matmul", (32, 32));
 
-        let output_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: (wsize * std::mem::size_of::<T>()) as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false
-        });
+    //     let output_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
+    //         label: None,
+    //         size: (wsize * std::mem::size_of::<T>()) as u64,
+    //         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+    //         mapped_at_creation: false
+    //     });
 
-        let staging_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: (wsize * std::mem::size_of::<T>()) as u64,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false
-        });
+    //     let staging_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
+    //         label: None,
+    //         size: (wsize * std::mem::size_of::<T>()) as u64,
+    //         usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+    //         mapped_at_creation: false
+    //     });
 
-        let bind_group = multiplier.get_bind_group_batch(&batch, &pipeline, &output_buffer);
+    //     let bind_group = multiplier.get_bind_group_batch(&batch, &pipeline, &output_buffer);
 
-        let result = multiplier.encode_and_submit_batch(&pipeline, &bind_group, &output_buffer, &staging_buffer, &wshape, wsize).wait();
+    //     let result = multiplier.encode_and_submit_batch(&pipeline, &bind_group, &output_buffer, &staging_buffer, &wshape, wsize).wait();
         
-        result
-    }
+    //     result
+    // }
 }
 
 impl<'a, T> Clone for GpuTensor<'a, T>

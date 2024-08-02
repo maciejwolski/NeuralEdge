@@ -265,7 +265,7 @@ where
 
 impl<T,B> LayerNorm<T,B>
 where
-    T: Float + FromPrimitive,
+    T: Float + FromPrimitive + Debug,
     B: Tensor<T> + Clone + SubAssign,
 {
     pub fn new(input_dim: usize) -> Self {
@@ -290,6 +290,7 @@ where
     }
 
     pub fn forward(&mut self, input: &B) -> B {
+        //println!("LayerNorm input: {:?}", input.get_data());
         self.input = input.clone();
         let epsilon = T::from(1e-5).unwrap();
 
@@ -358,7 +359,7 @@ where
 
 impl<T, B> Node<T, B> for LayerNorm<T, B>
 where
-    T: Float + FromPrimitive + AsPrimitive<f32> + Send + Sync,
+    T: Float + FromPrimitive + AsPrimitive<f32> + Send + Sync + Debug,
     B: Tensor<T> + Clone + AddAssign + SubAssign + Send + Sync
 {
     fn node_forward(&mut self, input: &B) -> B {
@@ -777,6 +778,7 @@ where
     pub fn backward(&mut self, target: &B) -> B {
         let mask = Transformer::get_mask_for_special_tokens(target, self.output.shape()[2]);
         let output_grad = Transformer::cross_entropy_loss_backward(target, &self.output, &mask);
+
         if validate_gradients(&output_grad) {
             println!(">>> Cross Entropy Loss backward contains NaN");
         }

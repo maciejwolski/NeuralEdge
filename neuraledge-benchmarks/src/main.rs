@@ -20,7 +20,7 @@ fn main() {
     let mut arrays: Vec<ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>>> = Vec::new();
 
     for _ in 0..5000 {
-        let data = ArrayD::<f32>::from_shape_fn(IxDyn(&[20, 384]), |_| {
+        let data = ArrayD::<f32>::from_shape_fn(IxDyn(&[50, 384]), |_| {
             rng.gen_range(-1.0..1.0)
         });
 
@@ -53,7 +53,7 @@ fn main() {
         println!("Benchmarking GPU stacked processing...");
         let start = Instant::now();
 
-        GpuTensor::matmul_optimized(batch, mult);
+        batch.matmul(&mult);
 
         let gpu_stacked_elapsed = start.elapsed();
         println!("Total time: {:?}", gpu_stacked_elapsed);

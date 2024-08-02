@@ -43,7 +43,6 @@ where
     layers: Vec<Block<T,B>>,
     fc_logits: Arc<Mutex<Linear<T, B>>>,
     prediction: Arc<Mutex<PredictionOutput<T,B>>>,
-    output: Option<B>,
     opt_grads: HashMap::<String, B>,
     hyperparams: Hyperparameters,
     graph: Graph<T,B>
@@ -109,7 +108,7 @@ where
             d_ff,
         };
 
-        Self { params: Parameters::new(), tok_embedding, pos_encoding, layers, fc_logits, prediction, output: None, opt_grads: HashMap::new(), hyperparams, graph }
+        Self { params: Parameters::new(), tok_embedding, pos_encoding, layers, fc_logits, prediction, opt_grads: HashMap::new(), hyperparams, graph }
     }
 
     fn from_checkpoint(model: ModelData<T,B>) -> Self {
@@ -193,20 +192,6 @@ where
         }
 
         transformer
-    }
-
-    pub fn forward(&mut self, result: &B) -> B {
-        self.output = Some(result.clone());
-        result.clone()
-    }
-
-    pub fn backward(&mut self, target: &B) -> B {
-        let mask = Transformer::get_mask_for_special_tokens(target, self.output.as_ref().unwrap().shape()[2]);
-        let output_grad = Transformer::cross_entropy_loss_backward(target, &self.output.as_ref().unwrap(), &mask);
-        if validate_gradients(&output_grad) {
-            println!(">>> Cross Entropy Loss backward contains NaN");
-        }
-        output_grad
     }
 
     pub fn update(&mut self, learning_rate: T, opt: Option<&mut RMSProp<T,B>>) {

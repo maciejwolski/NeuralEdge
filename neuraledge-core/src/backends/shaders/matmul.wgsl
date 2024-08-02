@@ -18,8 +18,8 @@ fn batch_mul(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let m = uniforms.m;  // number of columns in matrix
     let b = uniforms.b;  // number of matrices (batch size)
     
-    let batch_index = global_id.y / n;
-    let row = global_id.y % n;
+    let batch_index = global_id.z;
+    let row = global_id.y;
     let col = global_id.x;
     
     if (batch_index >= b || row >= n || col >= m) {
@@ -27,8 +27,8 @@ fn batch_mul(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
     
     var sum: f32 = 0.0;
-    for (var k: u32 = 0u; k < n; k = k + 1u) {
-        let matrix_val = matrices[batch_index * n * n + row * n + k];
+    for (var k: u32 = 0u; k < m; k = k + 1u) {
+        let matrix_val = matrices[batch_index * n * m + row * m + k];
         let multiplier_val = multiplier[k * m + col];
         sum += matrix_val * multiplier_val;
     }
@@ -38,19 +38,23 @@ fn batch_mul(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
 @compute @workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y)
 fn matmul(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    var M: u32 = u32(uniforms.n);
-    var N: u32 = u32(uniforms.m);
-    var K: u32 = u32(uniforms.b);
-    var x: u32 = global_id.x;
-    var y: u32 = global_id.y;
+    let n = uniforms.n;  // number of rows in matrix A
+    let m = uniforms.m;  // number of columns in matrix B
+    let k = uniforms.b;  // number of columns in matrix A / rows in matrix B
 
-    if (x >= N || y >= M) {
+    let row = global_id.y;
+    let col = global_id.x;
+
+    if (row >= n || col >= m) {
         return;
     }
 
     var sum: f32 = 0.0;
-    for(var k: u32 = 0u; k < K; k = k + 1u) {
-        sum = matrices[y * K + k] * multiplier[k * N + x] + sum;
+    for (var i: u32 = 0u; i < k; i = i + 1u) {
+        let matrix_val = matrices[row * k + i];
+        let multiplier_val = multiplier[i * m + col];
+        sum += matrix_val * multiplier_val;
     }
-    output[x + y * N] = sum;
+    
+    output[row * m + col] = sum;
 }

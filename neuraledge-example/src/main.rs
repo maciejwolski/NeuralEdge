@@ -12,8 +12,8 @@ use std::path::Path;
 
 use neuraledge_lang::tokenizers::load_tokenizer;
 
-//type BackendTensor<'a> = neuraledge_core::backends::gpu::GpuTensor<'a, f32>;
-type BackendTensor = neuraledge_core::backends::cpu::CpuTensor<f32>;
+type BackendTensor<'a> = neuraledge_core::backends::gpu::GpuTensor<'a, f32>;
+//type BackendTensor = neuraledge_core::backends::cpu::CpuTensor<f32>;
 
 fn main() {
     let data = DATA.to_vec();
