@@ -80,7 +80,7 @@ impl GPUContext {
 
     pub fn get_pipeline(&self, label: &'static str, shader_type: &'static str, workgroup_size: WorkgroupSize) -> Arc<wgpu::ComputePipeline> {
 
-        let mut pipelines = self.pipelines.write().unwrap();
+        let mut pipelines = self.pipelines.write().unwrap_or_else(|e| e.into_inner());
         let key = (label.to_string(), workgroup_size);
 
         if let Some(pipeline) = pipelines.get(&key) {
@@ -251,7 +251,7 @@ where
     fn div(&self, other: &Self) -> Self {
         let context = get_gpu_context();
         let wsize = self.size();
-        let pipeline = context.get_pipeline("div", "array", (wsize, 1));
+        let pipeline = context.get_pipeline("divide", "array", (wsize, 1));
 
         let output_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -735,10 +735,10 @@ where T: bytemuck::Pod + 'static
         let workgroup_count_y: u32;
 
         if target_shape.len() == 2 {
-            workgroup_count_x = (target_shape[0] / 32 + 1) as u32;
-            workgroup_count_y = (target_shape[1] / 32 + 1) as u32;
+            workgroup_count_x = ((target_shape[0] + 31) / 32) as u32;
+            workgroup_count_y = ((target_shape[1] + 31) / 32) as u32;
         } else if target_shape.len() == 1 {
-            workgroup_count_x = (target_shape[0] / 32 + 1) as u32;
+            workgroup_count_x = ((target_shape[0] + 31) / 32) as u32;
             workgroup_count_y = 1 as u32;
         } else {
             workgroup_count_x = 16 as u32;
@@ -781,7 +781,7 @@ where T: bytemuck::Pod + 'static
 
         let workgroup_count_x = ((target_shape[2] + 31) / 32) as u32;
         let workgroup_count_y = ((target_shape[1] + 31) / 32) as u32;
-        let workgroup_count_z = target_shape[0] as u32;
+        let workgroup_count_z = ((target_shape[0] + 31) / 32) as u32;
     
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes: None });
